@@ -54,21 +54,26 @@ def naiveReconstruction(points, normals, X, Y, Z):
         IF     : implicit function sampled at the grid points
     """
 
-     # Flatten grid coordinates
+    # Flatten grid coordinates
     Q = np.column_stack((X.ravel(), Y.ravel(), Z.ravel()))
     tree = KDTree(points)
     
     # Initialize output
     signed_distances = np.zeros(Q.shape[0], dtype=np.float32)
     
-    # Process points one at a time to minimize memory usage
-    for i in range(Q.shape[0]):
-        # Find nearest point
-        _, idx = tree.query(Q[i:i+1], k=1)  # Query with a single point
+    # Process points in small batches for memory efficiency
+    batch_size = 10000  # Adjust based on your system's memory
+    for i in range(0, Q.shape[0], batch_size):
+        batch = Q[i:i+batch_size]
+        _, idx = tree.query(batch, k=1)
         
-        # Compute signed distance for this point
-        vector = Q[i] - points[idx][0]
-        signed_distances[i] = np.dot(normals[idx][0], vector)
+        # Get corresponding normals and points
+        batch_normals = normals[idx].reshape(-1, 3)
+        batch_points = points[idx].reshape(-1, 3)
+        
+        # Compute signed distance: n_j · (p - p_j)
+        vectors = batch - batch_points
+        signed_distances[i:i+batch_size] = np.einsum('ij,ij->i', batch_normals, vectors)
     
     IF = signed_distances.reshape(X.shape)
     
