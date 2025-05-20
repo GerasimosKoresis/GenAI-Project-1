@@ -23,6 +23,7 @@ def train(dataset, model, optimizer, args):
     loss_sum = 0.0
     loss_count = 0.0
     num_batch = len(dataset)
+    sigma = 0.1 #the clamping parameter
     for i in range(num_batch):
         data = dataset[i]  # a dict
         optimizer.zero_grad()
@@ -34,8 +35,22 @@ def train(dataset, model, optimizer, args):
         # <================START MODIFYING CODE<================>
         ##########################################################       
         # **** YOU SHOULD ADD TRAINING CODE FOR THE LOSS HERE, CURRENTLY IT IS INCORRECT ****
-        loss_sum += 1. * xyz_tensor.shape[0]
+        ground_truth_sdf_tensor = data['xyz'].to(device) #ground truth sdf values
+
+        # Compute clamped L1 loss
+        clamped_pred = torch.clamp(pred_sdf_tensor, -sigma, sigma) #clamp the predictions of the network
+        clamped_gt = torch.clamp(ground_truth_sdf_tensor, -sigma, sigma) #clamp the ground truths also
+        loss = torch.abs(clamped_pred - clamped_gt).mean() #calculate the loss between them
+        #loss = torch.nn.L1Loss(clamped_pred - clamped_gt)
+
+        loss.backward() #backward propagation of the calculated loss
+
+
+        loss_sum += loss.item() * xyz_tensor.shape[0]
         loss_count += xyz_tensor.shape[0]
+
+        #loss_sum += 1. * xyz_tensor.shape[0]
+        
         # ***********************************************************************
         ##########################################################
         # <================END MODIFYING CODE<================>
@@ -52,6 +67,7 @@ def val(dataset, model, optimizer, args):
     loss_sum = 0.0
     loss_count = 0.0
     num_batch = len(dataset)
+    sigma = 0.1 #the clamping parameter
     for i in range(num_batch):
         data = dataset[i]  # a dict
         
@@ -61,9 +77,16 @@ def val(dataset, model, optimizer, args):
         # <================START MODIFYING CODE<================>
         ##########################################################              
         # **** YOU SHOULD ADD VALIDATION CODE HERE, CURRENTLY IT IS INCORRECT ****
+        ground_truth_sdf_tensor = data['xyz'].to(device) #ground truth sdf values
         with torch.no_grad():
-            xyz_tensor = data['xyz'].to(device)
-            loss_sum += 1. * xyz_tensor.shape[0]
+            pred_sdf_tensor = model(xyz_tensor) # forward pass
+            #xyz_tensor = data['xyz'].to(device)
+            clamped_pred = torch.clamp(pred_sdf_tensor, -sigma, sigma) #clamp the predictions of the network
+            clamped_gt = torch.clamp(ground_truth_sdf_tensor, -sigma, sigma) #clamp the ground truths also
+            loss = torch.abs(clamped_pred - clamped_gt).mean() #calculate the loss between them
+            #loss = torch.nn.L1Loss(clamped_pred - clamped_gt)
+            
+            loss_sum += loss.item() * xyz_tensor.shape[0]
             loss_count += xyz_tensor.shape[0]
         # ***********************************************************************
         ##########################################################
